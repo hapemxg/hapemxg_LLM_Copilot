@@ -1,1 +1,10 @@
 # hapemxg_LLM_Copilot
+自制的自用LLM浏览器插件，v2版，拥有让LLM控制浏览器的功能。
+
+自己注意安全，请勿向LLM提交敏感信息，尤其是自动读取当前网页功能。
+
+项目目前几乎没有做输入token优化，谨慎使用按量计费的LLMapi服务，推荐使用英伟达提供的免费api。
+
+<img width="362" height="3616" alt="QQ截图20251221155551" src="https://github.com/user-attachments/assets/4a1f4b18-9302-4f17-a86a-4b3973f249da" />
+
+代码100%由AI构成，梦到什么做什么。

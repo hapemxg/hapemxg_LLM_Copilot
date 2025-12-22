@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>DeepSeek Sidebar</title>
+  <link rel="stylesheet" href="lib/atom-one-dark.min.css">
+  <!-- 请确保下载了以下库文件 -->
+  <script src="lib/highlight.min.js"></script>
+  <script src="lib/marked.min.js"></script>
+  <script src="lib/purify.min.js"></script> <!-- 新增安全库 -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header>
+    <div class="header-title">
+      <span class="icon">🧠</span> hapemxg Copilot
+    </div>
+    <div class="header-actions">
+	  <button id="testVisionBtn" class="icon-btn" title="[调试] 识别页面元素">👁️</button>
+      <!-- === 新增：清除标记按钮 === -->
+      <button id="clearMarkingsBtn" class="icon-btn" title="清除页面上的所有标记">🧼</button>
+      <button id="historyBtn" class="icon-btn" title="历史对话">📜</button>
+      <button id="clearContextBtn" class="icon-btn" title="清空当前上下文 (保留会话)">🗑️</button>
+      <button id="newChatBtn" class="icon-btn" title="新建对话">➕</button>
+      <button id="settingsBtn" class="icon-btn" title="设置">⚙️</button>
+    </div>
+  </header>
+
+  <!-- 历史记录侧边栏 -->
+  <div id="history-panel" class="history-panel hidden">
+    <div class="history-header">
+      <h3>历史记录</h3>
+      <button id="closeHistory">×</button>
+    </div>
+    <div id="session-list" class="session-list"></div>
+  </div>
+
+  <!-- 聊天区域 -->
+  <div id="chat-container">
+    <div class="message system">
+      <div class="message-content">👋 欢迎！点击右上角 ➕ 开启新对话，⚙️ 配置 DeepSeek API。</div>
+    </div>
+  </div>
+
+  <!-- 底部操作区 -->
+  <div id="input-area">
+    <div id="attachments-area"></div>
+    
+    <div class="toolbar">
+      <label class="tool-btn-wrapper" title="勾选后，每次发送消息都会自动附带当前网页为永久记忆">
+        <input type="checkbox" id="autoPermCheck">
+        <button id="addPermContextBtn" class="tool-btn-inner">📌 永久记忆</button>
+      </label>
+      
+      <label class="tool-btn-wrapper secondary" title="勾选后，每次发送消息都会自动临时读取当前网页">
+        <input type="checkbox" id="autoTempCheck">
+        <button id="addTempContextBtn" class="tool-btn-inner">👁️ 临时读取</button>
+      </label>
+    </div>
+
+    <div class="input-wrapper">
+      <textarea id="userInput" placeholder="输入消息 (Shift+Enter 换行)..."></textarea>
+      <button id="stopBtn" class="hidden" title="停止生成"><span class="stop-icon">■</span></button>
+      <button id="sendBtn" title="发送">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 设置模态框 -->
+  <div id="settings-modal" class="hidden">
+    <div class="settings-content">
+      <div class="settings-header">
+        <h3>⚙️ 设置</h3>
+        <button id="closeSettings" class="close-btn">×</button>
+      </div>
+      
+      <div class="settings-body">
+        <div class="preset-bar">
+          <select id="presetSelect">
+            <option value="">-- 选择预设 --</option>
+          </select>
+          <div class="preset-actions">
+            <button id="savePresetBtn" class="tool-btn small">💾 存为预设</button>
+            <button id="delPresetBtn" class="tool-btn danger small">🗑️</button>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="setting-section">
+            <h4>基础配置 (主模型)</h4>
+            <div class="form-group">
+                <label>API URL</label>
+                <input type="text" id="apiUrl" placeholder="https://api.deepseek.com/chat/completions" />
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" id="apiKey" placeholder="sk-..." />
+            </div>
+            <div class="form-group">
+                <label>模型名称 (Model)</label>
+                <input type="text" id="modelName" value="deepseek-chat" />
+            </div>
+        </div>
+
+        <details>
+            <summary>视觉模型配置 (Vision API)</summary>
+            <div class="setting-section">
+                <p style="font-size:11px; color:#888; margin-bottom:8px;">
+                    用于 "analyze_screenshot" 工具。建议使用 gpt-4o-mini 或 gemini-1.5-flash 等支持 Vision 的模型。
+                </p>
+                <div class="form-group">
+                    <label>Vision API URL</label>
+                    <input type="text" id="visionApiUrl" placeholder="https://api.openai.com/v1/chat/completions" />
+                </div>
+                <div class="form-group">
+                    <label>Vision API Key</label>
+                    <input type="password" id="visionApiKey" placeholder="sk-..." />
+                </div>
+                <div class="form-group">
+                    <label>Vision Model Name</label>
+                    <input type="text" id="visionModel" placeholder="gpt-4o-mini" />
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>高级参数 (Temperature / Top P)</summary>
+            <div class="setting-section">
+                <div class="row-group">
+                    <div class="form-group half">
+                        <label>Temperature (0-2)</label>
+                        <input type="number" id="temperature" step="0.1" min="0" max="2" value="1.0" />
+                    </div>
+                    <div class="form-group half">
+                        <label>Top P (0-1)</label>
+                        <input type="number" id="topP" step="0.1" min="0" max="1" value="1.0" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>网页抓取字符上限</label>
+                    <input type="number" id="maxContextChars" step="1000" min="500" value="10000" />
+                    <small style="font-size: 11px; color: #888; opacity: 0.8;">数值越大消耗 Token 越多，也越容易超出模型上下文限制。</small>
+                </div>
+                <div class="form-group">
+                    <label>工具结果显示截断 (UI Truncation)</label>
+                    <input type="number" id="uiTruncateLimit" step="100" min="0" placeholder="0 = 不截断" />
+                    <small style="font-size: 11px; color: #888;">工具返回内容在聊天气泡中的最大显示长度。设为 0 则完全显示（可能导致卡顿）。</small>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>前置上下文注入 (Few-Shot / 预设对话)</summary>
+            <div class="setting-section">
+                <p style="font-size:12px; color:#888; margin-bottom:8px;">
+                    在发送历史记录前，强制插入一段对话。可用于设定人设或提供回答范例。
+                </p>
+                <div class="form-group">
+                    <label>注入用户消息 (User)</label>
+                    <textarea id="injectedUser" rows="2" placeholder="例如：请模仿鲁迅的语气回答问题"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>注入 AI 回复 (Assistant)</label>
+                    <textarea id="injectedAssistant" rows="2" placeholder="例如：好的，如果不嫌弃我这拙劣的文字，我便试上一试。"></textarea>
+                </div>
+            </div>
+        </details>
+        
+        <!-- === 修改后的工具管理面板 === -->
+        <details open>
+            <summary>工具管理 (Tools)</summary>
+            <div class="setting-section">
+                <div class="tool-toggle-actions">
+                    <button id="enableAllToolsBtn" class="tool-btn small">全部开启</button>
+                    <button id="disableAllToolsBtn" class="tool-btn small danger">全部关闭</button>
+                </div>
+                <div id="tool-toggles-container" class="tool-toggles-container">
+                    <!-- 工具开关将由 JS 动态生成 -->
+                </div>
+                
+                <!-- 加一个分割线，让 UI 更清晰 -->
+                <hr class="divider" style="margin: 12px 0;">
+
+                <!-- === “工具使用指南” 从下面移动到了这里 === -->
+                <div class="form-group">
+                    <label>工具使用指南 (Tools Prompt)</label>
+                    <textarea id="toolsPrompt" rows="4"></textarea>
+                    <small style="font-size: 11px; color: #888;">当有工具可用时，这段文字将被插入到系统提示词的 `{{TOOLS_PROMPT}}` 位置。</small>
+                </div>
+            </div>
+        </details>
+
+        <div class="setting-section">
+            <!-- === “工具使用指南” 已从这里移除 === -->
+            <div class="form-group">
+                <label>系统提示词 (System Prompt)</label>
+                <textarea id="systemPrompt" rows="5">你是一个智能助手。
+{{TOOLS_PROMPT}}</textarea>
+            </div>
+        </div>
+
+        <details>
+            <summary>自定义请求体 (JSON)</summary>
+            <div class="setting-section">
+                <div class="form-group">
+                    <label>合并到请求 Body 中的 JSON (例如开启 thinking)</label>
+                    <textarea id="customJson" rows="3" placeholder='{ "chat_template_kwargs": { "thinking": true } }'></textarea>
+                </div>
+            </div>
+        </details>
+
+      </div>
+
+      <div class="settings-actions">
+        <button id="saveConfig" class="primary">保存并生效</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
