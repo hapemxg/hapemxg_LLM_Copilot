@@ -5,6 +5,4 @@
 
 项目目前几乎没有做输入token优化，谨慎使用按量计费的LLMapi服务，推荐使用英伟达提供的免费api。
 
-<img width="362" height="3616" alt="QQ截图20251221155551" src="https://github.com/user-attachments/assets/4a1f4b18-9302-4f17-a86a-4b3973f249da" />
-
 代码100%由AI构成，梦到什么做什么。
