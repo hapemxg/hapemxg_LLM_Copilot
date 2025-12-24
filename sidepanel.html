@@ -4,22 +4,19 @@
   <meta charset="UTF-8">
   <title>DeepSeek Sidebar</title>
   <link rel="stylesheet" href="lib/atom-one-dark.min.css">
-  <!-- 请确保下载了以下库文件 -->
   <script src="lib/highlight.min.js"></script>
   <script src="lib/marked.min.js"></script>
-  <script src="lib/purify.min.js"></script> <!-- 新增安全库 -->
+  <script src="lib/purify.min.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <!-- 顶部导航 -->
   <header>
     <div class="header-title">
       <span class="icon">🧠</span> hapemxg Copilot
     </div>
     <div class="header-actions">
 	  <button id="testVisionBtn" class="icon-btn" title="[调试] 识别页面元素">👁️</button>
-      <!-- === 新增：清除标记按钮 === -->
       <button id="clearMarkingsBtn" class="icon-btn" title="清除页面上的所有标记">🧼</button>
       <button id="historyBtn" class="icon-btn" title="历史对话">📜</button>
       <button id="clearContextBtn" class="icon-btn" title="清空当前上下文 (保留会话)">🗑️</button>
@@ -28,7 +25,6 @@
     </div>
   </header>
 
-  <!-- 历史记录侧边栏 -->
   <div id="history-panel" class="history-panel hidden">
     <div class="history-header">
       <h3>历史记录</h3>
@@ -37,14 +33,12 @@
     <div id="session-list" class="session-list"></div>
   </div>
 
-  <!-- 聊天区域 -->
   <div id="chat-container">
     <div class="message system">
       <div class="message-content">👋 欢迎！点击右上角 ➕ 开启新对话，⚙️ 配置 DeepSeek API。</div>
     </div>
   </div>
 
-  <!-- 底部操作区 -->
   <div id="input-area">
     <div id="attachments-area"></div>
     
@@ -69,7 +63,6 @@
     </div>
   </div>
 
-  <!-- 设置模态框 -->
   <div id="settings-modal" class="hidden">
     <div class="settings-content">
       <div class="settings-header">
@@ -170,7 +163,6 @@
             </div>
         </details>
         
-        <!-- === 修改后的工具管理面板 === -->
         <details open>
             <summary>工具管理 (Tools)</summary>
             <div class="setting-section">
@@ -179,13 +171,10 @@
                     <button id="disableAllToolsBtn" class="tool-btn small danger">全部关闭</button>
                 </div>
                 <div id="tool-toggles-container" class="tool-toggles-container">
-                    <!-- 工具开关将由 JS 动态生成 -->
                 </div>
                 
-                <!-- 加一个分割线，让 UI 更清晰 -->
                 <hr class="divider" style="margin: 12px 0;">
 
-                <!-- === “工具使用指南” 从下面移动到了这里 === -->
                 <div class="form-group">
                     <label>工具使用指南 (Tools Prompt)</label>
                     <textarea id="toolsPrompt" rows="4"></textarea>
@@ -195,7 +184,6 @@
         </details>
 
         <div class="setting-section">
-            <!-- === “工具使用指南” 已从这里移除 === -->
             <div class="form-group">
                 <label>系统提示词 (System Prompt)</label>
                 <textarea id="systemPrompt" rows="5">你是一个智能助手。

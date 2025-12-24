@@ -12,7 +12,6 @@ export async function fetchPageContent() {
 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      // 通过 args 传递字符限制
       args: [config.maxContextChars || 10000], 
       func: (limit) => {
         const cleanText = (text) => text.replace(/\s+/g, ' ').trim();
@@ -35,7 +34,6 @@ export async function fetchPageContent() {
         return {
           title: document.title,
           url: document.location.href,
-          // 使用传入的 limit
           content: cleanText(clone.innerText).substring(0, limit)
         };
       }

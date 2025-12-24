@@ -1,13 +1,9 @@
-// modules/state.js
-
 import { browserTools } from './tools.js';
 
-// --- 全局状态管理 ---
 export let sessions = {}; 
 export let currentSessionId = null;
 export let presets = []; 
 
-// 初始化 enabledTools 对象，默认全部开启
 const initialEnabledTools = {};
 browserTools.forEach(tool => {
   initialEnabledTools[tool.function.name] = true;
@@ -17,7 +13,6 @@ export let config = {
   apiUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
   apiKey: "",
   model: "moonshotai/kimi-k2-thinking",
-  // 在 systemPrompt 中使用占位符
   systemPrompt: `你是一个浏览器自动化代理。\n{{TOOLS_PROMPT}}`,
   temperature: 1.0,
   top_p: 1.0,
@@ -27,12 +22,10 @@ export let config = {
   injectedUserContext: "",
   injectedAssistantContext: "",
 
-  // 视觉模型配置
   visionApiUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
   visionApiKey: "",
   visionModel: "mistralai/mistral-large-3-675b-instruct-2512",
 
-  // 工具相关配置
   enabledTools: initialEnabledTools,
   toolsPrompt: `策略：
 1. 如果用户让你打开某个网站，直接调用 open_url。
@@ -50,7 +43,6 @@ export let editingMessageId = null;
 export let isAgentTabSwitch = false;
 export let isAgentModeActive = false;
 
-// --- Setters ---
 export function setSessions(newSessions) { sessions = newSessions; }
 export function setCurrentSessionId(newId) { currentSessionId = newId; }
 export function setPresets(newPresets) { presets = newPresets; }
@@ -79,16 +71,14 @@ export function createNewSession() {
     approvalSettings: {
         session: {},
         turn: {},
-        isSessionApproved: false, // 会话级全局授权
-        isTurnApproved: false    // 本轮级全局授权
+        isSessionApproved: false,
+        isTurnApproved: false
     }
   };
   currentSessionId = newId;
   saveStorage();
   return newId;
 }
-
-// --- 全局审批逻辑 ---
 
 function ensureApprovalStructure(session) {
     if (!session.approvalSettings) {
@@ -103,11 +93,9 @@ export function getApprovalSetting(toolName) {
     if (!session) return null;
     ensureApprovalStructure(session);
 
-    // 只要开启了全局授权（会话或本轮），直接放行所有工具
     if (session.approvalSettings.isSessionApproved) return 'session';
     if (session.approvalSettings.isTurnApproved) return 'turn';
 
-    // 兼容旧的工具级授权
     if (session.approvalSettings.session[toolName]) return 'session';
     if (session.approvalSettings.turn[toolName]) return 'turn';
 
@@ -127,7 +115,6 @@ export function setGlobalApprovalSetting(scope) {
     saveStorage();
 }
 
-// 供旧代码调用，保持兼容性
 export function setApprovalSetting(toolName, scope) {
     const session = sessions[currentSessionId];
     if (!session) return;
@@ -141,7 +128,7 @@ export function clearTurnApprovals() {
     const session = sessions[currentSessionId];
     if (session && session.approvalSettings) {
         session.approvalSettings.turn = {};
-        session.approvalSettings.isTurnApproved = false; // 每一轮询问前重置本轮授权
+        session.approvalSettings.isTurnApproved = false;
         saveStorage();
     }
 }

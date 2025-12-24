@@ -1,5 +1,3 @@
-// modules/ui.js
-
 import { 
     sessions, currentSessionId, editingMessageId, isGenerating, tempContexts, presets, config, 
     setEditingMessageId, saveStorage, setIsGenerating,
@@ -15,7 +13,7 @@ import {
 import { escapeHtml } from './utils.js';
 import { browserTools } from './tools.js';
 
-// DOM 元素引用
+// DOM Elements
 export const chatContainer = document.getElementById('chat-container');
 export const userInput = document.getElementById('userInput');
 export const sendBtn = document.getElementById('sendBtn');
@@ -99,7 +97,7 @@ export function renderChat() {
       renderFileCard(msg, index);
     } else if (msg.role === 'tool') {
       renderToolCallResult(msg, index);
-    } else { // user 和 assistant 走这里
+    } else { 
       const div = document.createElement('div');
       div.className = `message ${msg.role}`;
       if (msg.id) div.setAttribute('data-id', msg.id);
@@ -424,7 +422,7 @@ export function addErrorWithRetry(text) {
 }
 
 
-// 动态渲染工具开关的函数
+// 渲染工具开关
 function renderToolToggles() {
     const container = document.getElementById('tool-toggles-container');
     if (!container) return;
@@ -451,7 +449,6 @@ function renderToolToggles() {
 
 
 export function loadSettingsToUI() {
-  // 先渲染工具开关的结构
   renderToolToggles();
   
   document.getElementById('apiUrl').value = config.apiUrl || "";
@@ -473,13 +470,11 @@ export function loadSettingsToUI() {
   document.getElementById('visionApiKey').value = config.visionApiKey || "";
   document.getElementById('visionModel').value = config.visionModel || "gpt-4o-mini";
 
-  // 加载工具相关设置
   document.getElementById('toolsPrompt').value = config.toolsPrompt || "";
   
   const toolToggles = document.querySelectorAll('#tool-toggles-container input[type="checkbox"]');
   toolToggles.forEach(checkbox => {
       const toolName = checkbox.dataset.toolName;
-      // 确保即使 config.enabledTools 中没有这个工具的键，也默认为 false
       checkbox.checked = !!config.enabledTools?.[toolName];
   });
 }

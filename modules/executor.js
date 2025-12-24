@@ -1,18 +1,14 @@
-// modules/executor.js
 import { DOM_SNAPSHOT_SCRIPT, CLEAR_OVERLAY_SCRIPT } from './domAgent.js';
 import { requestUserApproval } from './ui.js';
 import { getApprovalSetting, setGlobalApprovalSetting, config, setIsAgentTabSwitch } from './state.js';
 
-/**
- * 等待页面加载完成的辅助函数
- */
+/** 等待页面加载完成 */
 async function waitForPageLoad(tabId) {
     try {
         await chrome.scripting.executeScript({
             target: { tabId },
             func: () => new Promise(resolve => {
                 if (document.readyState === 'complete') return resolve();
-                // 设置一个合理的超时，防止页面一直加载中卡死
                 const timeout = setTimeout(resolve, 8000); 
                 window.addEventListener('load', () => {
                     clearTimeout(timeout);
@@ -20,7 +16,6 @@ async function waitForPageLoad(tabId) {
                 }, { once: true });
             })
         });
-        // 额外等待一下，确保动态内容（如JS渲染的组件）加载
         return new Promise(resolve => setTimeout(resolve, 1000)); 
     } catch(e) { 
         console.warn("waitForPageLoad failed:", e.message);
@@ -28,10 +23,7 @@ async function waitForPageLoad(tabId) {
     }
 }
 
-/**
- * 可复用的页面内容读取函数
- * 此函数作为工具的内部实现，不直接暴露给LLM
- */
+/** 读取当前标签页内容 */
 async function readActiveTabContent(tabId) {
     try {
         const readRes = await chrome.scripting.executeScript({
@@ -182,11 +174,9 @@ export async function executeTool(name, args) {
         setIsAgentTabSwitch(true);
         let clickResult = "点击指令无返回结果";
         try {
-          // 1. 记录点击前的 URL
           const [preClickTab] = await chrome.tabs.query({ active: true, currentWindow: true });
           const oldUrl = preClickTab.url;
 
-          // 2. 执行点击
           const clickRes = await chrome.scripting.executeScript({
             target: { tabId: activeTab.id },
             args: [args.element_id],
@@ -200,24 +190,16 @@ export async function executeTool(name, args) {
           });
           clickResult = clickRes[0]?.result || clickResult;
 
-          // 3. 等待可能的跳转或页面响应 (保留2秒等待，确保跳转开始)
           await new Promise(r => setTimeout(r, 2000));
           
-          // 4. 获取点击后的状态
           const [postClickTab] = await chrome.tabs.query({ active: true, currentWindow: true });
           const newUrl = postClickTab.url;
 
-          // 5. 比较 URL 是否变化
           if (oldUrl !== newUrl) {
-              // URL 变了 (发生了跳转)
-              // 等待新页面加载完成
               await waitForPageLoad(postClickTab.id);
-              // 读取新页面内容
               const newPageContent = await readActiveTabContent(postClickTab.id);
               return `${clickResult} 页面已跳转至: ${newUrl}。\n\n${newPageContent}`;
           } else {
-              // URL 没变 (可能是弹窗、下拉刷新或 SPA 局部更新)
-              // 仅返回点击结果，不读取 DOM，节省 Token
               return `${clickResult}`;
           }
 
@@ -271,7 +253,6 @@ export async function executeTool(name, args) {
 
       // 视觉分析工具
       case "analyze_screenshot": {
-        // 1. 确保页面上有标记
         await chrome.scripting.executeScript({
             target: { tabId: activeTab.id },
             func: DOM_SNAPSHOT_SCRIPT
@@ -279,13 +260,167 @@ export async function executeTool(name, args) {
         
         await new Promise(r => setTimeout(r, 150));
 
-        // 2. 截图
         const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 60 });
         
         if (!dataUrl) return "错误：无法截取屏幕。";
 
-        // 3. 调用视觉 API
         return await callVisionAPI(dataUrl, args.target_description);
+      }
+      
+      case "web_search": {
+          const q = encodeURIComponent(args.query);
+          const url = `https://www.bing.com/search?q=${q}`;
+          
+          try {
+              // 添加 User-Agent 伪装，确保 Bing 返回 PC 版页面
+              const res = await fetch(url, {
+                  headers: {
+                      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                  }
+              });
+
+              if (!res.ok) {
+                  return `Bing 搜索请求失败: ${res.status}`;
+              }
+              const htmlText = await res.text();
+              
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(htmlText, "text/html");
+              
+              let resultElements = doc.querySelectorAll('li.b_algo');
+              
+              if (resultElements.length === 0) {
+                  resultElements = doc.querySelectorAll('#b_results > li');
+              }
+
+              if (resultElements.length === 0) {
+                  resultElements = doc.querySelectorAll('.b_algo, .b_ans'); 
+              }
+              
+              const results = [];
+              const maxResults = 5;
+              
+              const extractData = (el) => {
+                  const titleEl = el.querySelector('h2 a, .b_title a');
+                  if (!titleEl) return null;
+                  
+                  const title = titleEl.innerText.trim();
+                  const link = titleEl.href;
+                  if (!link || link.startsWith('javascript')) return null;
+
+                  const clone = el.cloneNode(true);
+                  
+                  // 移除干扰元素
+                  const metaSelectors = [
+                      'style', 'script', 'svg', 'path', 'h2', 'h3', 'header', 
+                      '.b_attribution', '.b_cite', '.b_algoheader', 
+                      '.b_overflow', '.b_actions', '.b_contextmenu', '.b_header_action', 
+                      '.b_ad', '.b_expando', '.b_check'
+                  ];
+                  metaSelectors.forEach(sel => {
+                      clone.querySelectorAll(sel).forEach(n => n.remove());
+                  });
+                  
+                  const blockTags = ['div', 'p', 'li', 'br', 'ul', 'ol', 'section'];
+                  blockTags.forEach(tag => {
+                      clone.querySelectorAll(tag).forEach(node => {
+                          node.innerHTML = ` ${node.innerHTML} `;
+                          if (tag === 'br') node.replaceWith('\n');
+                      });
+                  });
+
+                  let snippet = clone.textContent;
+                  
+                  snippet = snippet.replace(/[\s\u3000]+/g, ' ').trim();
+                  
+                  snippet = snippet.replace(/^[·\-\s\d\w]+(\d{4}年\d{1,2}月\d{1,2}日)?[·\-\s]+/, '');
+                  
+                  if (snippet.length < 5) { 
+                      snippet = "无摘要";
+                  }
+
+                  return { title, link, snippet };
+              };
+
+              for (let i = 0; i < resultElements.length; i++) {
+                  if (results.length >= maxResults) break;
+                  const data = extractData(resultElements[i]);
+                  if (data) {
+                      results.push(`[${results.length + 1}] ${data.title}\n链接: ${data.link}\n摘要: ${data.snippet}\n`);
+                  }
+              }
+
+              if (results.length === 0) {
+                   const genericResults = doc.querySelectorAll('h2 a');
+                   if (genericResults.length > 0) {
+                       genericResults.forEach((a) => {
+                           if (results.length >= maxResults) return;
+                           const title = a.innerText.trim();
+                           const link = a.href;
+                           if (title && link && link.startsWith('http') && !link.includes('microsoft.com/')) { 
+                               results.push(`[${results.length + 1}] ${title}\n链接: ${link}\n(自动提取的备用结果)\n`);
+                           }
+                       });
+                   }
+              }
+              
+              if (results.length === 0) {
+                   // 调试信息：如果还是失败，返回一点 HTML 结构片段帮忙 Debug (截取前500字符)
+                   // const debugSnippet = htmlText.substring(0, 500).replace(/</g, '&lt;');
+                   return `未能解析出关于 "${args.query}" 的有效结果。请尝试更换关键词。`;
+              }
+
+              return `关于 "${args.query}" 的 Bing 搜索结果:\n\n${results.join('\n----------------\n')}`;
+              
+          } catch (e) {
+              return `搜索请求发生错误: ${e.message}`;
+          }
+      }
+
+      case "fetch_url_content": {
+          try {
+              if (!args.url || !args.url.startsWith('http')) {
+                  return "错误: 无效的 URL。";
+              }
+
+              const res = await fetch(args.url, {
+                  method: 'GET',
+                  redirect: 'follow',
+                  headers: {
+                      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                  }
+              });
+
+              if (!res.ok) {
+                  return `获取网页失败: HTTP ${res.status} ${res.statusText}`;
+              }
+
+              const htmlText = await res.text();
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(htmlText, "text/html");
+
+              const trashSelectors = [
+                  'script', 'style', 'noscript', 'iframe', 'svg', 'header', 'footer', 'nav', 
+                  '.ad', '.ads', '.advertisement', '#sidebar', '.sidebar'
+              ];
+              trashSelectors.forEach(sel => {
+                  doc.querySelectorAll(sel).forEach(el => el.remove());
+              });
+
+              const title = doc.title.trim() || "无标题";
+              let text = doc.body.innerText || "";
+              text = text.replace(/[\r\n]+/g, '\n').replace(/\s+/g, ' ').trim();
+              
+              const maxLength = config.maxContextChars || 15000;
+              if (text.length > maxLength) {
+                  text = text.substring(0, maxLength) + "\n... (内容过长已截断)";
+              }
+
+              return `网页标题: ${title}\nURL: ${res.url}\n\n内容摘要:\n${text}`;
+
+          } catch (e) {
+              return `后台抓取网页失败: ${e.message}`;
+          }
       }
 
       default: return `未知工具指令: ${name}`;

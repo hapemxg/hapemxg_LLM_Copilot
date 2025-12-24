@@ -1,16 +1,12 @@
-// modules/domAgent.js
-
 export const DOM_SNAPSHOT_SCRIPT = () => {
     try {
         const OVERLAY_ID = '__hapemxg_copilot_overlay__';
-        const MAX_ELEMENTS = 400; // 熔断限制
+        const MAX_ELEMENTS = 400; 
 
-        // 1. 清理旧标记
         const oldOverlay = document.getElementById(OVERLAY_ID);
         if (oldOverlay) oldOverlay.remove();
         document.querySelectorAll('[data-agent-id]').forEach(el => el.removeAttribute('data-agent-id'));
 
-        // 2. 视口检查
         const viewportHeight = window.innerHeight;
         const viewportWidth = window.innerWidth;
 
@@ -25,7 +21,7 @@ export const DOM_SNAPSHOT_SCRIPT = () => {
                 if (rect.right < 0 || rect.left > viewportWidth) return false;
                 return true;
             } catch (e) {
-                return false; // 如果样式获取失败，视为不可见
+                return false; 
             }
         };
 
@@ -38,7 +34,6 @@ export const DOM_SNAPSHOT_SCRIPT = () => {
             return label.substring(0, 50);
         };
 
-        // 3. 安全创建覆盖层
         if (!document.body) throw new Error("Document body not found");
         
         const overlay = document.createElement('div');
@@ -61,7 +56,6 @@ export const DOM_SNAPSHOT_SCRIPT = () => {
 
             const el = potentialElements[i];
             
-            // 增加 try-catch 防止单个元素属性获取失败导致脚本崩溃
             try {
                 const rect = el.getBoundingClientRect();
                 if (!isVisible(el, rect)) continue;
@@ -85,7 +79,6 @@ export const DOM_SNAPSHOT_SCRIPT = () => {
                 validEntries.push({ el, rect, label: label || (isInput ? "[输入]" : "[点击]") });
                 count++;
             } catch (innerError) {
-                // 忽略单个元素的错误，继续扫描下一个
                 continue;
             }
         }
@@ -130,7 +123,6 @@ export const DOM_SNAPSHOT_SCRIPT = () => {
         };
     } catch (e) {
         console.error("DOM Snapshot Error:", e);
-        // 将具体的错误信息返回给 UI
         return { error: e.toString() };
     }
 };

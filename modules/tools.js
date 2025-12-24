@@ -1,5 +1,3 @@
-// modules/tools.js
-
 export const browserTools = [
   {
     type: "function",
@@ -78,6 +76,40 @@ export const browserTools = [
           }
         },
         required: ["target_description"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "使用 Bing 搜索来获取网络上的信息。当无法通过阅读当前页面解决问题，或需要外部知识时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { 
+            type: "string", 
+            description: "搜索关键词" 
+          }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_url_content",
+      description: "在后台获取指定 URL 的网页纯文本内容。用于 web_search 搜索后，进一步读取感兴趣的网页详情。此工具不会切换用户当前的标签页。",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { 
+            type: "string", 
+            description: "要读取的网页链接 (URL)" 
+          }
+        },
+        required: ["url"]
       }
     }
   }

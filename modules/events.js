@@ -1,5 +1,3 @@
-// modules/events.js
-
 import { 
     sessions, currentSessionId, isGenerating, tempContexts, autoPerm, autoTemp, presets, config,
     isAgentTabSwitch,
@@ -78,29 +76,20 @@ export function handleRetry(index) {
     
     let newMessages;
 
-    // 策略：
-    // 1. 如果重试的是【用户】或【工具结果】消息，意图是保留这条消息，让 AI 重新生成回复。
-    //    操作：切片保留到当前 index (包含)，触发 handleSend。
-    // 2. 如果重试的是【AI】消息，意图是重写这条回复。
-    //    操作：切片保留到 index 之前 (不包含)，触发 handleSend。
-    
+    // 如果重试 Assistant 消息，则移除该消息；否则（用户/工具消息）保留该消息。
     if (targetMsg.role === 'assistant') {
         newMessages = msgs.slice(0, index);
     } else {
         newMessages = msgs.slice(0, index + 1);
     }
 
-    // 防止悬空的工具调用：如果切片后的最后一条消息是 Assistant 且包含 tool_calls，
-    // 必须移除它以防止 API 错误（因为它需要紧接着一个 tool 消息）。
     const lastMsg = newMessages[newMessages.length - 1];
     if (lastMsg && lastMsg.role === 'assistant' && lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
-        console.warn("Detected dangling tool call after retry slice. Removing parent assistant message to prevent API error.");
         newMessages.pop();
     }
 
     replaceMessages(newMessages);
     
-    // 强制 retry 模式，避免重复添加 User 消息
     handleSend(true);
 }
 
@@ -131,9 +120,9 @@ export async function handleSend(isRetry = false) {
     const text = userInput.value.trim();
     if (!isRetry && !text && tempContexts.length === 0 && !autoPerm && !autoTemp) return;
 
-    // 检查是否为 Agent 模式（启用了工具）
     const activeTools = browserTools.filter(tool => config.enabledTools?.[tool.function.name]);
-    const isAgentTurn = activeTools.length > 0;
+    const silentTools = ['web_search', 'fetch_url_content'];
+    const isAgentTurn = activeTools.some(tool => !silentTools.includes(tool.function.name));
     setIsAgentModeActive(isAgentTurn);
 
     if (!isRetry) {
@@ -147,7 +136,6 @@ export async function handleSend(isRetry = false) {
         }
         let fullContent = text;
         if (tempContexts.length > 0) {
-            // 使用更结构化的方式包装临时上下文
             const contextXml = tempContexts.map(c => 
                 `<current_page_context>\n<title>${c.title}</title>\n<url>${c.url}</url>\n<content>${c.content}</content>\n</current_page_context>`
             ).join("\n");
@@ -175,9 +163,7 @@ export async function handleSend(isRetry = false) {
     renderChat();
     
     try {
-        // 如果是 Agent 模式，注入交互看门狗脚本
         if (isAgentTurn) {
-            console.log("Agent turn detected. Activating interaction watchdog.");
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (tab && !tab.url.startsWith('chrome')) {
                 chrome.scripting.executeScript({
@@ -185,8 +171,6 @@ export async function handleSend(isRetry = false) {
                     func: WATCHDOG_SCRIPT
                 });
             }
-        } else {
-            console.log("Standard chat turn. Watchdog is disabled.");
         }
         
         await callLLM();
@@ -374,7 +358,7 @@ export function initializeEventListeners() {
             document.getElementById('visionApiUrl').value = p.visionApiUrl || "";
             if(p.visionApiKey) document.getElementById('visionApiKey').value = p.visionApiKey;
             document.getElementById('visionModel').value = p.visionModel || "";
-
+            
             // 加载预设中的工具配置
             document.getElementById('toolsPrompt').value = p.toolsPrompt || "";
             const toolToggles = document.querySelectorAll('#tool-toggles-container input[type="checkbox"]');
