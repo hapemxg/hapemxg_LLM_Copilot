@@ -26,14 +26,15 @@ import { browserTools } from './tools.js';
 const WATCHDOG_SCRIPT = () => {
     if (window.hasAgentWatchdog) return;
     window.hasAgentWatchdog = true;
-    const notify = () => {
+    const notify = (event) => {
+        if (event && event.isTrusted === false) return;
         window.removeEventListener('mousedown', notify, { capture: true });
         window.removeEventListener('keydown', notify, { capture: true });
         delete window.hasAgentWatchdog;
         try { chrome.runtime.sendMessage({ type: 'USER_INTERACTION_DETECTED' }); } catch(e) {}
     };
-    window.addEventListener('mousedown', notify, { capture: true, once: true });
-    window.addEventListener('keydown', notify, { capture: true, once: true });
+    window.addEventListener('mousedown', notify, { capture: true });
+    window.addEventListener('keydown', notify, { capture: true });
 };
 
 function stopAgentTask(reason) {

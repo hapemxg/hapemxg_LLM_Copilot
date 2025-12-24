@@ -183,8 +183,33 @@ export async function executeTool(name, args) {
             func: (id) => {
                 const el = document.querySelector(`[data-agent-id="${id}"]`);
                 if (!el) return `错误: 未找到 ID=${id} 的元素`;
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                el.click();
+                
+                // 1. 确保元素进入视口 (使用 auto 瞬间跳转，避免 smooth 滚动的延迟)
+                el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+
+                // 2. 模拟完整的真实鼠标交互事件序列
+                // 很多现代框架(React/Vue)依赖 mousedown/mouseup 而非单纯的 click
+                const eventOptions = { 
+                    bubbles: true, 
+                    cancelable: true, 
+                    view: window,
+                    composed: true 
+                };
+
+                try {
+                    el.dispatchEvent(new MouseEvent('mouseover', eventOptions));
+                    el.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                    el.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                    el.dispatchEvent(new MouseEvent('click', eventOptions));
+                    
+                    // 3. 某些原生表单元素可能仍需要原始的 click() 方法触发默认行为
+                    // 但为了避免双重触发，通常 dispatchEvent('click') 已经足够。
+                    // 只有在没有触发成功时才考虑。不过对于自动化，模拟事件通常更通用。
+                } catch (e) {
+                    // 兜底尝试原生方法
+                    el.click();
+                }
+
                 return `已点击 ID=${id} 的元素 (${el.tagName})。`;
             }
           });

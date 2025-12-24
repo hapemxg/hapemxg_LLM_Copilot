@@ -16,7 +16,7 @@ function parseCustomToolCalls(content) {
     const calls = [];
     if (!content) return { calls };
 
-    const toolCallRegex = /<\|tool_call_begin\|>([\s\S]*?)<\|tool_call_argument_begin\|>([\s\S]*?)(?:<\|tool_call_argument_end\|>)?[\s\S]*?<\|tool_call_end\|>/gi;
+    const toolCallRegex = /<\|tool_call_begin\|>([\s\S]*?)<\|tool_call_argument_begin\|>([\s\S]*?)(?:<\|tool_call_argument_end\|>|(?=<\|tool_call_end\|>))[\s\S]*?<\|tool_call_end\|>/gi;
     const matches = [...content.matchAll(toolCallRegex)];
 
     for (const match of matches) {
@@ -255,9 +255,8 @@ export async function callLLM() {
                 }
             }
 
-            const tagCleaner = /<\|tool_call_begin\|>[\s\S]*?<\|tool_call_end\|>|<\|tool_calls_section_begin\|>[\s\S]*?<\|tool_calls_section_end\|>/gi;
-            const cleanContent = aiContent.replace(tagCleaner, '').trim();
-            const cleanThink = aiThink.replace(tagCleaner, '').trim();
+            const cleanContent = aiContent.trim();
+            const cleanThink = aiThink.trim();
 
             const allToolCalls = nativeToolCalls.length > 0 ? nativeToolCalls : extractedCustomToolCalls;
             
