@@ -261,9 +261,26 @@ button#stopBtn { background-color: var(--danger-color); }
   border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   display: flex; flex-direction: column; overflow: hidden;
 }
-.settings-header { padding: 12px 16px; background: #fcfcfc; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-.settings-body { padding: 16px; overflow-y: auto; flex: 1; }
-.settings-actions { padding: 12px 16px; border-top: 1px solid var(--border-color); background: #fcfcfc; display: flex; justify-content: flex-end; }
+.settings-header { padding: 12px 16px; background: #fcfcfc; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.settings-body { 
+  padding: 16px; 
+  overflow-y: auto; 
+  flex: 1; 
+  min-height: 0; /* 关键：Flex 滚动修正 */
+  overscroll-behavior: contain; /* 关键：防止滚动链传递 */
+}
+/* 为设置页面美化滚动条 */
+.settings-body::-webkit-scrollbar {
+  width: 6px;
+}
+.settings-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.settings-body::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 10px;
+}
+.settings-actions { padding: 12px 16px; border-top: 1px solid var(--border-color); background: #fcfcfc; display: flex; justify-content: flex-end; flex-shrink: 0; }
 #saveConfig { background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 500; cursor: pointer; }
 
 .preset-bar { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -287,6 +304,88 @@ button#stopBtn { background-color: var(--danger-color); }
 .close-btn:hover { color: inherit; }
 
 details summary { cursor: pointer; font-weight: 500; font-size: 13px; color: var(--primary-color); margin-bottom: 8px; user-select: none; }
+
+/* === 设置页面重构样式 === */
+.setting-group {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    background: rgba(128, 128, 128, 0.02);
+    transition: all 0.2s;
+}
+
+.setting-group[open] {
+    background: var(--ai-bg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.setting-group summary {
+    padding: 12px;
+    margin-bottom: 0;
+    font-size: 14px;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    list-style: none; /* 移除默认箭头 */
+}
+
+.setting-group summary::before {
+    content: "▶";
+    font-size: 10px;
+    margin-right: 10px;
+    transition: transform 0.2s;
+    opacity: 0.5;
+}
+
+.setting-group[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.setting-group summary:hover {
+    background: rgba(128, 128, 128, 0.05);
+}
+
+.setting-group .setting-section {
+    padding: 0 12px 12px 12px;
+    margin-bottom: 0;
+}
+
+/* 嵌套折叠样式 */
+.nested-details {
+    margin-top: 8px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 8px;
+}
+
+.nested-details summary {
+    font-size: 12px;
+    color: var(--primary-color);
+    opacity: 0.8;
+    padding: 4px 0;
+}
+
+.vision-sub-section {
+    padding: 8px;
+    background: rgba(0,0,0,0.02);
+    border-radius: 6px;
+}
+
+/* 优化表单间距 */
+.form-group label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* 深色模式微调 */
+@media (prefers-color-scheme: dark) {
+    .setting-group {
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .vision-sub-section {
+        background: rgba(255, 255, 255, 0.03);
+    }
+}
+/* =============================== */
 
 /* 代码高亮块 (常规 Markdown 代码) */
 pre code.hljs { display: block; overflow-x: auto; padding: 1em; }
@@ -508,26 +607,133 @@ code.hljs { padding: 3px 5px; }
   margin-bottom: 12px;
 }
 .tool-toggles-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr; /* 每行显示两个 */
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .tool-toggle-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   background: var(--bg-color);
   border: 1px solid var(--border-color);
-  padding: 6px 8px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
   cursor: pointer;
   user-select: none;
+  transition: all 0.2s;
 }
 .tool-toggle-label:hover {
+  background: var(--user-bg);
   border-color: var(--primary-color);
 }
-.tool-toggle-label input {
-  width: 14px;
-  height: 14px;
+/* === 快捷指令编辑器重构 (双层) === */
+.quick-commands-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 16px; /* 增加组间距 */
 }
+.quick-command-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    background: rgba(128, 128, 128, 0.05);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+.quick-command-line {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+.quick-command-line .row-label {
+    flex: 1;
+    font-weight: 600;
+    padding: 6px 10px !important;
+}
+.quick-command-line .row-label:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+}
+.quick-command-line .row-value {
+    width: 100%;
+    font-size: 12px;
+    opacity: 0.9;
+}
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.row-temp-check {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+.row-temp-check input {
+    margin: 0 !important;
+    width: 14px !important;
+    height: 14px !important;
+}
+.del-row-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    opacity: 0.5;
+    padding: 4px;
+    transition: all 0.2s;
+}
+.del-row-btn:hover { 
+    opacity: 1; 
+    color: var(--danger-color);
+    transform: scale(1.1);
+}
+
+/* === 恢复：主界面快捷指令按钮样式 (垂直居中) === */
+.quick-commands-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    padding: 40px 0;
+}
+
+.quick-command-btn {
+    background: var(--ai-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 14px 28px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 85%;
+    max-width: 320px;
+}
+
+.quick-command-btn:hover {
+    border-color: var(--primary-color);
+    background: var(--user-bg);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(74, 144, 226, 0.15);
+}
+
+.quick-command-btn span {
+    display: inline-block;
+}
+/* =============================== */

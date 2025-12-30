@@ -1,19 +1,21 @@
-import { 
-    sessions, currentSessionId, editingMessageId, isGenerating, tempContexts, presets, config, 
+import {
+    sessions, currentSessionId, editingMessageId, isGenerating, tempContexts, presets, config,
     setEditingMessageId, saveStorage, setIsGenerating,
-    addMessage 
+    addMessage
 } from './state.js';
 
-import { 
-    handleRetry, handleDeleteMessage, handleEditSave, handleSwitchSession, 
+import {
+    handleRetry, handleDeleteMessage, handleEditSave, handleSwitchSession,
     handleDeleteSession, handleRemoveTempContext,
-    handleSend 
+    handleSend
 } from './events.js';
 
 import { escapeHtml } from './utils.js';
 import { browserTools } from './tools.js';
 
-// DOM Elements
+/**
+ * UI 组件集与核心 DOM 节点引用
+ */
 export const chatContainer = document.getElementById('chat-container');
 export const userInput = document.getElementById('userInput');
 export const sendBtn = document.getElementById('sendBtn');
@@ -26,12 +28,16 @@ export const autoTempCheck = document.getElementById('autoTempCheck');
 
 let isUserScrolling = false;
 
+// 监听用户滚动行为，用于控制自动滚动到底部
 chatContainer.addEventListener('scroll', () => {
     const threshold = 8;
     const distanceFromBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight;
     isUserScrolling = distanceFromBottom > threshold;
 });
 
+/**
+ * 辅助函数：创建操作按钮
+ */
 function createActionBtn(text, onClick) {
     const btn = document.createElement('button');
     btn.className = 'action-btn';
@@ -40,6 +46,9 @@ function createActionBtn(text, onClick) {
     return btn;
 }
 
+/**
+ * 渲染侧边栏历史会话列表
+ */
 export function renderSessionList() {
   const list = document.getElementById('session-list');
   if(!list) return;
@@ -63,6 +72,9 @@ export function renderSessionList() {
   });
 }
 
+/**
+ * 渲染待发送的临时上下文附件标记
+ */
 export function renderTempAttachments() {
   attachmentsArea.innerHTML = '';
   tempContexts.forEach((item, index) => {
@@ -74,6 +86,9 @@ export function renderTempAttachments() {
   });
 }
 
+/**
+ * 更新输入框及发送/停止按钮的交互状态
+ */
 export function setChatState(generating) {
   setIsGenerating(generating);
   if (generating) {
@@ -88,9 +103,21 @@ export function setChatState(generating) {
   }
 }
 
+/**
+ * 主对话区域全量渲染
+ */
 export function renderChat() {
   chatContainer.innerHTML = '';
   const currentMsgs = sessions[currentSessionId]?.messages || [];
+
+  // 初始状态：显示欢迎卡片及快捷指令
+  if (currentMsgs.length === 0 && !isGenerating) {
+    const quickCmdsContainer = document.createElement('div');
+    quickCmdsContainer.id = 'quick-commands-container';
+    quickCmdsContainer.className = 'quick-commands-container';
+    renderQuickCommands(quickCmdsContainer);
+    chatContainer.appendChild(quickCmdsContainer);
+  }
 
   currentMsgs.forEach((msg, index) => {
     if (msg.role === 'context') {
@@ -121,31 +148,27 @@ export function renderChat() {
             contentDiv.style.whiteSpace = "pre-wrap"; 
           }
 
+          // 消息操作工具条
           const actionsDiv = document.createElement('div');
           actionsDiv.className = 'message-actions';
-          
-          const editBtn = createActionBtn('✏️', () => {
+          actionsDiv.appendChild(createActionBtn('✏️', () => {
               setEditingMessageId(msg.id);
               renderChat();
-          });
-          actionsDiv.appendChild(editBtn);
-
-          const delBtn = createActionBtn('🗑️', () => handleDeleteMessage(index));
-          actionsDiv.appendChild(delBtn);
-
+          }));
+          actionsDiv.appendChild(createActionBtn('🗑️', () => handleDeleteMessage(index)));
           if (msg.role === 'assistant' || msg.role === 'user') {
-              const retryBtn = createActionBtn('🔄', () => handleRetry(index));
-              actionsDiv.appendChild(retryBtn);
+              actionsDiv.appendChild(createActionBtn('🔄', () => handleRetry(index)));
           }
-
           div.appendChild(actionsDiv);
       }
       chatContainer.appendChild(div);
     }
   });
   
+  // 代码高亮异步处理
   if(typeof hljs !== 'undefined') document.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
   
+  // 渲染完成后的自动滚动处理
   if(!isGenerating) {
     setTimeout(() => {
         if (!isUserScrolling) chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -153,6 +176,9 @@ export function renderChat() {
   }
 }
 
+/**
+ * 渲染工具执行结果卡片
+ */
 function renderToolCallResult(msg, index) {
     const div = document.createElement('div');
     div.className = 'message tool';
@@ -177,12 +203,7 @@ function renderToolCallResult(msg, index) {
     const delBtn = document.createElement('button');
     delBtn.className = 'tool-del-btn';
     delBtn.innerHTML = '×';
-    delBtn.title = '删除此条记录';
-    delBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleDeleteMessage(index);
-    };
+    delBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(index); };
 
     summary.appendChild(leftSpan);
     summary.appendChild(delBtn);
@@ -191,10 +212,10 @@ function renderToolCallResult(msg, index) {
     pre.className = 'tool-call-content';
     const content = msg.content || "";
 
+    // 针对超长结果进行 UI 侧截断，优化大模型上下文注入
     const limit = config.uiTruncateLimit !== undefined ? config.uiTruncateLimit : 2000;
-    
     if (limit > 0 && content.length > limit) {
-        pre.textContent = content.substring(0, limit) + `\n... [内容已截断，共 ${content.length} 字符。可在设置中调整阈值]`;
+        pre.textContent = content.substring(0, limit) + `\n... [内容已截断，共 ${content.length} 字符]`;
     } else {
         pre.textContent = content;
     }
@@ -203,38 +224,29 @@ function renderToolCallResult(msg, index) {
     details.appendChild(pre);
     div.appendChild(details);
     
-    // 在工具卡片下方添加操作栏
+    // 工具卡片底部的快捷重试工具条
     const actionsBar = document.createElement('div');
     actionsBar.className = 'message-actions';
     actionsBar.style.opacity = '1';
-    actionsBar.style.paddingLeft = '4px';
     actionsBar.style.justifyContent = 'flex-start'; 
 
-    const continueBtn = createActionBtn('🔄 继续', (e) => {
-        e.stopPropagation();
-        handleRetry(index);
-    });
-    continueBtn.title = "网络中断或AI出错？点击基于此工具结果继续生成。";
-    
-    const deleteMsgBtn = createActionBtn('🗑️', (e) => {
-        e.stopPropagation();
-        handleDeleteMessage(index);
-    });
-
-    actionsBar.appendChild(continueBtn);
-    actionsBar.appendChild(deleteMsgBtn);
-    
+    actionsBar.appendChild(createActionBtn('🔄 继续', () => handleRetry(index)));
+    actionsBar.appendChild(createActionBtn('🗑️', () => handleDeleteMessage(index)));
     div.appendChild(actionsBar);
     
     chatContainer.appendChild(div);
 }
 
+/**
+ * AI 气泡更新逻辑：支持思考链折叠展示与 Markdown 内容动态解析
+ */
 export function updateAiBubble(domElement, think, content, isInit = false, autoCollapse = false, autoExpand = false) {
   let contentDiv = domElement.querySelector('.message-content');
   if (!contentDiv) return;
   
   let thinkContainer = contentDiv.querySelector('.think-container');
   
+  // 处理思考链内容
   if (think) {
     if (!thinkContainer) {
       const shouldOpen = autoExpand || (isInit && !content);
@@ -244,15 +256,10 @@ export function updateAiBubble(domElement, think, content, isInit = false, autoC
     } else {
       const pre = thinkContainer.querySelector('pre');
       if (pre) pre.textContent = think;
-      
       const details = thinkContainer.querySelector('details');
       if (details) {
-        if (autoCollapse && details.hasAttribute('open')) {
-          details.removeAttribute('open');
-        }
-        if (autoExpand && !details.hasAttribute('open')) {
-          details.setAttribute('open', '');
-        }
+        if (autoCollapse && details.hasAttribute('open')) details.removeAttribute('open');
+        if (autoExpand && !details.hasAttribute('open')) details.setAttribute('open', '');
       }
     }
   }
@@ -264,21 +271,19 @@ export function updateAiBubble(domElement, think, content, isInit = false, autoC
     contentDiv.appendChild(mdContainer);
   }
 
+  // 增量式 Markdown 渲染与安全过滤
   if (content) {
       let rawHtml = typeof marked !== 'undefined' ? marked.parse(content) : escapeHtml(content);
-      if (typeof DOMPurify !== 'undefined') {
-          rawHtml = DOMPurify.sanitize(rawHtml);
-      }
+      if (typeof DOMPurify !== 'undefined') rawHtml = DOMPurify.sanitize(rawHtml);
       
       if (mdContainer.innerHTML !== rawHtml) {
           mdContainer.innerHTML = rawHtml;
           
+          // 为 Markdown 中的代码块注入 Copy 按钮及容器
           mdContainer.querySelectorAll('pre').forEach((pre) => {
               if (pre.parentElement.tagName === 'DETAILS') return;
-
               const codeEl = pre.querySelector('code');
               const codeText = codeEl?.innerText || pre.innerText;
-
               const langMatch = codeEl ? codeEl.className.match(/language-(\S+)/) : null;
               const lang = langMatch ? langMatch[1] : 'code';
 
@@ -288,10 +293,7 @@ export function updateAiBubble(domElement, think, content, isInit = false, autoC
 
               const summary = document.createElement('summary');
               summary.className = 'code-header';
-
-              const langSpan = document.createElement('span');
-              langSpan.className = 'code-lang';
-              langSpan.innerText = lang;
+              summary.innerHTML = `<span class="code-lang">${lang}</span>`;
 
               const btn = document.createElement('button');
               btn.className = 'copy-code-btn';
@@ -304,20 +306,20 @@ export function updateAiBubble(domElement, think, content, isInit = false, autoC
                   });
               };
               
-              summary.appendChild(langSpan);
               summary.appendChild(btn);
               details.appendChild(summary);
-              
               pre.parentNode.insertBefore(details, pre);
               details.appendChild(pre);
           });
           
+          // 实时高亮新生成代码块
           mdContainer.querySelectorAll('pre code').forEach((block) => {
              if (typeof hljs !== 'undefined') hljs.highlightElement(block);
           });
       }
   }
 
+  // 非初始化状态下，随内容生成自动滚动到底部
   if (!isInit && !isUserScrolling) {
       requestAnimationFrame(() => {
         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -325,15 +327,18 @@ export function updateAiBubble(domElement, think, content, isInit = false, autoC
   }
 }
 
+/**
+ * 消息编辑框构建逻辑
+ */
 function createEditBox(msg, index) {
     const container = document.createElement('div');
     container.className = 'edit-container';
-    container.style.width = "100%"; 
     
     const textarea = document.createElement('textarea');
     textarea.className = 'edit-textarea';
     textarea.value = msg.content;
     
+    // 自动调整高度并聚焦
     setTimeout(() => {
         textarea.style.height = 'auto';
         textarea.style.height = (textarea.scrollHeight + 10) + 'px';
@@ -348,28 +353,24 @@ function createEditBox(msg, index) {
     saveBtn.innerText = '保存';
     saveBtn.onclick = () => {
         const newText = textarea.value.trim();
-        if (newText) {
-            handleEditSave(index, msg, newText);
-        }
+        if (newText) handleEditSave(index, msg, newText);
     };
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'btn-cancel';
     cancelBtn.innerText = '取消';
-    cancelBtn.onclick = () => {
-        setEditingMessageId(null);
-        renderChat();
-    };
+    cancelBtn.onclick = () => { setEditingMessageId(null); renderChat(); };
 
     actions.appendChild(cancelBtn);
     actions.appendChild(saveBtn);
-    
     container.appendChild(textarea);
     container.appendChild(actions);
-    
     return container;
 }
 
+/**
+ * 渲染上下文/永久记忆文件卡片
+ */
 function renderFileCard(msg, index) {
     const div = document.createElement('div');
     div.className = 'message context';
@@ -389,6 +390,9 @@ function renderFileCard(msg, index) {
     chatContainer.appendChild(div);
 }
 
+/**
+ * 向 UI 插入系统级提示消息
+ */
 export function addSystemMessage(text) {
   const div = document.createElement('div');
   div.className = 'message system';
@@ -397,6 +401,9 @@ export function addSystemMessage(text) {
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+/**
+ * 显示带重试逻辑的错误提示
+ */
 export function addErrorWithRetry(text) {
     const div = document.createElement('div');
     div.className = 'message system error'; 
@@ -408,12 +415,7 @@ export function addErrorWithRetry(text) {
     `;
     div.querySelector('button').onclick = () => { 
         div.remove();
-        addMessage({ 
-            role: 'assistant', 
-            content: '', 
-            think: '', 
-            id: "ai-" + Date.now() 
-        });
+        addMessage({ role: 'assistant', content: '', think: '', id: "ai-" + Date.now() });
         renderChat(); 
         handleSend();
     };
@@ -421,36 +423,76 @@ export function addErrorWithRetry(text) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-
-// 渲染工具开关
+/**
+ * 渲染设置界面中的工具功能开关
+ */
 function renderToolToggles() {
     const container = document.getElementById('tool-toggles-container');
-    if (!container) return;
+    if (!container) return; 
     container.innerHTML = ''; 
 
     browserTools.forEach(tool => {
         const toolName = tool.function.name;
         const label = document.createElement('label');
         label.className = 'tool-toggle-label';
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.id = `toggle-${toolName}`;
-        checkbox.dataset.toolName = toolName;
-
-        const span = document.createElement('span');
-        span.textContent = toolName;
-        
-        label.appendChild(checkbox);
-        label.appendChild(span);
+        label.innerHTML = `<input type="checkbox" id="toggle-${toolName}" data-tool-name="${toolName}"><span>${toolName}</span>`;
         container.appendChild(label);
     });
 }
 
+import { fetchPageContent, addTemporaryChip } from './context.js';
 
+/**
+ * 首页快捷指令面板渲染
+ */
+function renderQuickCommands(container) {
+    if (!config.quickCommands || config.quickCommands.length === 0) return;
+    config.quickCommands.forEach(cmd => {
+        const btn = document.createElement('button');
+        btn.className = 'quick-command-btn';
+        btn.innerHTML = `<span>${escapeHtml(cmd.label)}</span>`;
+        btn.onclick = async () => {
+            if (cmd.useTemp) {
+                const data = await fetchPageContent();
+                if (data) addTemporaryChip(data);
+            }
+            userInput.value = cmd.value;
+            handleSend();
+        };
+        container.appendChild(btn);
+    });
+}
+
+/**
+ * 动态向快捷指令编辑器添加一行
+ */
+export function addCommandRow(label = "", value = "", useTemp = true) {
+    const container = document.getElementById('quick-commands-editor');
+    if (!container || container.querySelectorAll('.quick-command-row').length >= 10) return;
+
+    const row = document.createElement('div');
+    row.className = 'quick-command-row';
+    row.innerHTML = `
+        <div class="quick-command-line">
+            <input type="text" class="row-label" placeholder="标签" value="${escapeHtml(label)}">
+            <div class="row-actions">
+                <label class="row-temp-check" title="抓取网页"><input type="checkbox" class="use-temp-check" ${useTemp ? 'checked' : ''}><span>👁️</span></label>
+                <button class="del-row-btn">🗑️</button>
+            </div>
+        </div>
+        <div class="quick-command-line">
+            <input type="text" class="row-value" placeholder="指令" value="${escapeHtml(value)}">
+        </div>
+    `;
+    row.querySelector('.del-row-btn').onclick = () => row.remove();
+    container.appendChild(row);
+}
+
+/**
+ * 将持久化配置同步到设置 Modal
+ */
 export function loadSettingsToUI() {
   renderToolToggles();
-  
   document.getElementById('apiUrl').value = config.apiUrl || "";
   document.getElementById('apiKey').value = config.apiKey || "";
   document.getElementById('modelName').value = config.model || "deepseek-chat";
@@ -458,27 +500,29 @@ export function loadSettingsToUI() {
   document.getElementById('temperature').value = config.temperature ?? 1.0;
   document.getElementById('topP').value = config.top_p ?? 1.0;
   document.getElementById('customJson').value = config.customJson || "";
+  document.getElementById('summaryPrompt').value = config.summaryPrompt || "";
+  
+  const editorContainer = document.getElementById('quick-commands-editor');
+  if (editorContainer) {
+      editorContainer.innerHTML = '';
+      if (config.quickCommands) config.quickCommands.forEach(c => addCommandRow(c.label, c.value, c.useTemp !== false));
+  }
   
   document.getElementById('injectedUser').value = config.injectedUserContext || "";
   document.getElementById('injectedAssistant').value = config.injectedAssistantContext || "";
-  
   document.getElementById('maxContextChars').value = config.maxContextChars || 10000;
   document.getElementById('uiTruncateLimit').value = config.uiTruncateLimit !== undefined ? config.uiTruncateLimit : 2000;
-
-  // 视觉配置加载
-  document.getElementById('visionApiUrl').value = config.visionApiUrl || "https://api.openai.com/v1/chat/completions";
+  document.getElementById('visionApiUrl').value = config.visionApiUrl || "";
   document.getElementById('visionApiKey').value = config.visionApiKey || "";
-  document.getElementById('visionModel').value = config.visionModel || "gpt-4o-mini";
-
+  document.getElementById('visionModel').value = config.visionModel || "";
   document.getElementById('toolsPrompt').value = config.toolsPrompt || "";
   
-  const toolToggles = document.querySelectorAll('#tool-toggles-container input[type="checkbox"]');
-  toolToggles.forEach(checkbox => {
-      const toolName = checkbox.dataset.toolName;
-      checkbox.checked = !!config.enabledTools?.[toolName];
-  });
+  document.querySelectorAll('#tool-toggles-container input').forEach(cb => cb.checked = !!config.enabledTools?.[cb.dataset.toolName]);
 }
 
+/**
+ * 更新设置中的配置预设下拉列表
+ */
 export function updatePresetSelect() {
   const select = document.getElementById('presetSelect');
   select.innerHTML = '<option value="">-- 选择预设 --</option>';
@@ -490,6 +534,9 @@ export function updatePresetSelect() {
   });
 }
 
+/**
+ * 在 UI 中显示 Agent 执行状态消息
+ */
 export function showExecutionStatus(text) {
   hideExecutionStatus();
   const div = document.createElement('div');
@@ -500,37 +547,37 @@ export function showExecutionStatus(text) {
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+/**
+ * 移除 Agent 执行状态消息
+ */
 export function hideExecutionStatus() {
-  const existingStatus = document.getElementById('execution-status-message');
-  if (existingStatus) {
-    existingStatus.remove();
-  }
+  const el = document.getElementById('execution-status-message');
+  if (el) el.remove();
 }
 
+/**
+ * 弹出工具执行授权请求卡片
+ */
 export function requestUserApproval(toolName, args) {
   return new Promise((resolve) => {
     const cardId = `approval-${Date.now()}`;
     const div = document.createElement('div');
     div.id = cardId;
     div.className = 'message system';
-
-    const argsString = JSON.stringify(args, null, 2).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const argsString = JSON.stringify(args, null, 2).replace(/</g, "&lt;");
 
     div.innerHTML = `
       <div class="approval-card">
-        <div class="approval-header">
-          <span class="icon">🚦</span>
-          <strong>需要您的授权</strong>
-        </div>
+        <div class="approval-header"><strong>🚦 授权请求</strong></div>
         <div class="approval-body">
-          <p>AI 准备执行以下操作：</p>
-          <pre class="tool-call-content" style="max-height: 100px;"><strong>${toolName}</strong>\n${argsString}</pre>
+          <p>AI 请求执行：<strong>${toolName}</strong></p>
+          <pre class="tool-call-content">${argsString}</pre>
         </div>
         <div class="approval-actions">
-          <button class="btn-deny" data-choice="deny">❌ 拒绝</button>
-          <button class="btn-approve-secondary" data-choice="session">始终 (会话)</button>
-          <button class="btn-approve-secondary" data-choice="turn">始终 (本轮)</button>
-          <button class="btn-approve" data-choice="once">✅ 仅本次</button>
+          <button class="btn-deny" data-choice="deny">拒绝</button>
+          <button class="btn-approve-secondary" data-choice="session">会话始终允许</button>
+          <button class="btn-approve-secondary" data-choice="turn">本轮允许</button>
+          <button class="btn-approve" data-choice="once">允许本次</button>
         </div>
       </div>
     `;
@@ -538,29 +585,11 @@ export function requestUserApproval(toolName, args) {
     chatContainer.appendChild(div);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    const cardElement = document.getElementById(cardId);
-    
-    cardElement.querySelector('.approval-actions').addEventListener('click', (e) => {
+    div.querySelector('.approval-actions').addEventListener('click', (e) => {
         if (e.target.tagName !== 'BUTTON') return;
-
         const choice = e.target.dataset.choice;
-        cardElement.remove();
-
-        switch (choice) {
-            case 'once':
-                resolve({ approved: true, scope: 'once' });
-                break;
-            case 'turn':
-                resolve({ approved: true, scope: 'turn' });
-                break;
-            case 'session':
-                resolve({ approved: true, scope: 'session' });
-                break;
-            case 'deny':
-            default:
-                resolve({ approved: false });
-                break;
-        }
+        div.remove();
+        resolve({ approved: choice !== 'deny', scope: choice });
     });
   });
 }

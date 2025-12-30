@@ -1,9 +1,13 @@
+/**
+ * Agent 扩展工具定义映射表 (OpenAI Tool Specification 格式)
+ * 定义了 AI 能够调用的所有浏览器操作指令及其参数规范
+ */
 export const browserTools = [
   {
     type: "function",
     function: {
       name: "get_page_interactables",
-      description: "获取当前网页的交互元素快照。仅当你需要点击按钮(click_element)或输入文本(type_text)但不知道元素ID时调用。如果你只是想打开新网页，不需要调用此函数。",
+      description: "获取当前页面可交互元素的快照（包含元素 ID 与标签）。在执行点击或输入操作前必须调用此工具以确认目标 ID。",
       parameters: { type: "object", properties: {} }
     }
   },
@@ -11,7 +15,7 @@ export const browserTools = [
     type: "function",
     function: {
       name: "read_page_content",
-      description: "读取当前网页的主要文本内容。当你觉得找不到合适的按钮，或者需要基于网页内容回答问题时使用此工具。",
+      description: "提取并返回当前页面的主要文本内容。用于基于页面信息进行问答、总结或深度分析。",
       parameters: { type: "object", properties: {} }
     }
   },
@@ -19,13 +23,13 @@ export const browserTools = [
     type: "function",
     function: {
       name: "click_element",
-      description: "点击网页上的某个元素。必须提供从 get_page_interactables 获取的准确 ID。",
+      description: "模拟鼠标点击指定的页面元素。需要精确提供通过 get_page_interactables 获取的 element_id。",
       parameters: {
         type: "object",
         properties: {
           element_id: { 
             type: "integer", 
-            description: "要点击的元素ID (例如: 12)" 
+            description: "目标元素的唯一数字 ID" 
           }
         },
         required: ["element_id"]
@@ -36,13 +40,13 @@ export const browserTools = [
     type: "function",
     function: {
       name: "type_text",
-      description: "在输入框中输入文本。必须提供从 get_page_interactables 获取的准确 ID。",
+      description: "在指定输入框中注入文本。支持模拟回车操作以触发搜索或提交行为。",
       parameters: {
         type: "object",
         properties: {
-          element_id: { type: "integer", description: "输入框元素的ID" },
-          text: { type: "string", description: "要输入的文本内容" },
-          press_enter: { type: "boolean", description: "输入后是否按回车键", default: false }
+          element_id: { type: "integer", description: "目标输入框的唯一数字 ID" },
+          text: { type: "string", description: "待注入的字符串内容" },
+          press_enter: { type: "boolean", description: "注入完成后是否模拟按下回车键", default: false }
         },
         required: ["element_id", "text"]
       }
@@ -52,11 +56,11 @@ export const browserTools = [
     type: "function",
     function: {
       name: "open_url",
-      description: "在新标签页中打开一个网址。",
+      description: "在浏览器中打开新的 URL 链接。AI 会自动导航至该页面并等待加载完成。",
       parameters: {
         type: "object",
         properties: {
-          url: { type: "string", description: "完整的URL地址 (必须以 http:// 或 https:// 开头)" }
+          url: { type: "string", description: "完整的网址协议头 (http/https)" }
         },
         required: ["url"]
       }
@@ -66,13 +70,13 @@ export const browserTools = [
     type: "function",
     function: {
       name: "analyze_screenshot",
-      description: "当你在 DOM 树中找不到想要的元素，或者页面布局太复杂无法判断时，调用此工具。它会截取当前屏幕（包含视觉上的ID标记），并用视觉模型帮你寻找目标元素的 ID。描述应尽可能清晰，不要在不确定的时候假定某个图标可能是长什么样的，如指定'右下角的爱心图标'，正确请求是'右下角的点赞图标'（如果用户指定要求的是点赞图标）",
+      description: "视觉辅助分析工具。当 DOM 识别失效或页面布局极其复杂时调用。该工具会生成带编号的截图并由视觉模型辅助定位目标 ID。",
       parameters: {
         type: "object",
         properties: {
           target_description: { 
             type: "string", 
-            description: "描述你要找的元素。例如：'右上角的登录按钮' 或 'xxx下方的点赞按钮'。" 
+            description: "描述你希望寻找的元素特征及大致方位" 
           }
         },
         required: ["target_description"]
@@ -83,7 +87,7 @@ export const browserTools = [
     type: "function",
     function: {
       name: "web_search",
-      description: "使用 Bing 搜索来获取网络上的信息。当无法通过阅读当前页面解决问题，或需要外部知识时使用。",
+      description: "外部搜索引擎接入（Bing）。当当前页面无法提供所需信息或需要检索最新事实时使用。",
       parameters: {
         type: "object",
         properties: {
@@ -100,13 +104,13 @@ export const browserTools = [
     type: "function",
     function: {
       name: "fetch_url_content",
-      description: "在后台获取指定 URL 的网页纯文本内容。用于 web_search 搜索后，进一步读取感兴趣的网页详情。此工具不会切换用户当前的标签页。",
+      description: "跨域抓取指定链接的内容摘要。常用于搜索结果的深度阅读，此操作不会在 UI 上切换用户当前的活动标签页。",
       parameters: {
         type: "object",
         properties: {
           url: { 
             type: "string", 
-            description: "要读取的网页链接 (URL)" 
+            description: "待解析的完整网页链接" 
           }
         },
         required: ["url"]
